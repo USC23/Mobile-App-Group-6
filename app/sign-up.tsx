@@ -2,20 +2,21 @@ import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from 'rea
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleLogin = () => {
-    // TODO: Replace with real authentication logic
-    console.log('Logging in with:', email, password);
+  const handleSignUp = () => {
+    // TODO: Add validation and backend integration later
+    console.log('Signing up with:', email, password, confirmPassword);
     router.replace('/home'); // Temporary redirect to Emmanuel's landing page
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.title}>Create Account</Text>
 
       <TextInput
         placeholder="Email"
@@ -34,10 +35,18 @@ export default function LoginScreen() {
         style={styles.input}
       />
 
-      <Button title="Login" onPress={handleLogin} />
+      <TextInput
+        placeholder="Confirm Password"
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        secureTextEntry
+        style={styles.input}
+      />
 
-      <TouchableOpacity onPress={() => router.push('/sign-up')}>
-        <Text style={styles.link}>Don't have an account? Sign up</Text>
+      <Button title="Sign Up" onPress={handleSignUp} />
+
+      <TouchableOpacity onPress={() => router.replace('/')}>
+        <Text style={styles.link}>Already have an account? Log in</Text>
       </TouchableOpacity>
     </View>
   );
