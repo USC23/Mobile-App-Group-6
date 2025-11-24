@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, Modal } from 'react-native';
 
 type Task = {
   id: number;
@@ -11,6 +11,8 @@ const HomeScreen: React.FC = () => {
   const username = "Emmanuel"; // later this can come from backend/auth
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState("");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editText, setEditText] = useState("");
 
   // Add a new task
   const addTask = () => {
@@ -25,9 +27,12 @@ const HomeScreen: React.FC = () => {
     setTasks(tasks.filter(task => task.id !== id));
   };
 
-  // Edit a task (for now just rename)
-  const editTask = (id: number, newName: string) => {
-    setTasks(tasks.map(task => task.id === id ? { ...task, name: newName } : task));
+  // Save edited task
+  const saveEdit = () => {
+    if (!editingTask) return;
+    setTasks(tasks.map(task => task.id === editingTask.id ? { ...task, name: editText } : task));
+    setEditingTask(null);
+    setEditText("");
   };
 
   // Mark task as completed
@@ -47,7 +52,7 @@ const HomeScreen: React.FC = () => {
         onChangeText={setNewTask}
         style={styles.input}
       />
-      <Button title="➕ Create Task" onPress={addTask} />
+      <Button title="➕ Create Task" onPress={addTask} color="#2980b9" />
 
       {/* Pending tasks */}
       <Text style={styles.sectionTitle}>📝 Pending Tasks</Text>
@@ -58,9 +63,9 @@ const HomeScreen: React.FC = () => {
           <View style={styles.taskCard}>
             <Text style={styles.taskText}>{item.name}</Text>
             <View style={styles.actions}>
-              <Button title="Delete" color="red" onPress={() => deleteTask(item.id)} />
-              <Button title="Edit" color="orange" onPress={() => editTask(item.id, "Edited Task")} />
-              <Button title="Complete" color="green" onPress={() => completeTask(item.id)} />
+              <Button title="Delete" color="#e74c3c" onPress={() => deleteTask(item.id)} />
+              <Button title="Edit" color="#f39c12" onPress={() => { setEditingTask(item); setEditText(item.name); }} />
+              <Button title="Complete" color="#27ae60" onPress={() => completeTask(item.id)} />
             </View>
           </View>
         )}
@@ -77,6 +82,22 @@ const HomeScreen: React.FC = () => {
           </View>
         )}
       />
+
+      {/* Edit Task Modal */}
+      <Modal visible={editingTask !== null} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>✏ Edit Task</Text>
+            <TextInput
+              value={editText}
+              onChangeText={setEditText}
+              style={styles.input}
+            />
+            <Button title="Save" onPress={saveEdit} color="#27ae60" />
+            <Button title="Cancel" onPress={() => setEditingTask(null)} color="#e74c3c" />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -87,7 +108,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#ecf0f1',
   },
   welcomeText: {
     fontSize: 26,
@@ -98,7 +119,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#bdc3c7',
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
@@ -117,6 +138,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   taskText: {
     fontSize: 16,
@@ -128,16 +153,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   taskCardCompleted: {
-    backgroundColor: '#e0ffe0',
+    backgroundColor: '#d5f5e3',
     padding: 12,
     marginBottom: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#b2d8b2',
+    borderColor: '#27ae60',
   },
   taskTextCompleted: {
     fontSize: 16,
     color: '#27ae60',
     fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#2980b9',
+    textAlign: 'center',
   },
 });
