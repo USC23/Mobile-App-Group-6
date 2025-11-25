@@ -1,24 +1,39 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+// app/_layout.tsx
+import { Slot, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { getCurrentUser } from '../src/state/auth';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
 
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  );
+  useEffect(() => {
+    // show UI immediately and run navigation without blocking render
+    setReady(true);
+    const t = setTimeout(() => {
+      const user = getCurrentUser();
+      if (user) {
+        // navigate to dashboard
+        router.replace('/dashboard');
+      } else {
+        // navigate to auth landing
+        router.replace('/');
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!ready)
+    return (
+      <View style={styles.loading}>
+        <Text>Loading…</Text>
+      </View>
+    );
+
+  return <Slot />;
 }
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+});
