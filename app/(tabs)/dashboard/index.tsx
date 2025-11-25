@@ -1,137 +1,132 @@
+
 // app/(tabs)/dashboard/index.tsx
-import React, { useEffect, useState } from 'react';
-import { Alert, Button, FlatList, StyleSheet, Text, View } from 'react-native';
-import { TaskForm } from '../../../src/components/TaskForm';
-import { TaskItem } from '../../../src/components/TaskItem';
-import { createEvent, requestCalendarPermission } from '../../../src/services/calendar';
-import { cancelReminder, requestNotificationPermission, scheduleReminder } from '../../../src/services/notifications';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Switch, Alert } from 'react-native';
+import DateTimePicker, { Event } from '@react-native-community/datetimepicker';
 import { useTasks } from '../../../src/state/tasks';
+import { createEvent } from '../../../src/services/calendar';
+import { scheduleReminder, cancelReminder } from '../../../src/services/notifications';
 
 export default function DashboardPage() {
-  const { tasks, addTask, updateTaskStatus, deleteTask, updateTask } = useTasks();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [alerted, setAlerted] = useState<Record<string, boolean>>({});
+  const { tasks, addTask, markOverdue } = useTasks();
+  const [newTitle, setNewTitle] = useState('');
+  const [newDue, setNewDue] = useState<Date | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [syncCalendar, setSyncCalendar] = useState(false);
 
-  useEffect(() => {
-    // show alert for overdue pending tasks (only once per task)
-    const now = Date.now();
-    tasks.forEach(t => {
-      if (t.status === 'pending' && t.due) {
-        const dueMs = new Date(t.due).getTime();
-        if (dueMs < now && !alerted[t.id]) {
-          Alert.alert('Task overdue', `${t.title} is overdue.`);
-          setAlerted(prev => ({ ...prev, [t.id]: true }));
-        }
-      }
-    });
-  }, [tasks]);
+  // Stats
+  const pending = tasks.filter(t => t.status === 'pending');
+  const completed = tasks.filter(t => t.status === 'completed');
+  const incomplete = tasks.filter(t => t.status === 'incomplete');
+  const deleted = tasks.filter(t => t.status === 'deleted');
 
+  // Mark overdue periodically
   useEffect(() => {
-    // ask for permissions early (best-effort)
-    (async () => {
+    const timer = setInterval(() => markOverdue(), 60 * 1000);
+    return () => clearInterval(timer);
+  }, [markOverdue]);
+
+  const nextDue = pending
+    .filter(t => t.due)
+    .sort((a, b) => (new Date(a.due!).getTime() - new Date(b.due!).getTime()))[0];
+
+  const handleCreateTask = async () => {
+    if (!newTitle.trim()) return;
+
+    let reminderId: string | null = null;
+    let eventId: string | null = null;
+
+    if (newDue) {
       try {
-        await requestNotificationPermission();
-        await requestCalendarPermission();
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, []);
+        if (syncCalendar) {
+          eventId = await createEvent(newTitle, newDue);
+        }
+        reminderId = await scheduleReminder(newTitle, newDue);
+      } catch {}
+    }
+
+    addTask({ title: newTitle, due: newDue?.toISOString(), reminderId, eventId, status: 'pending' });
+
+    // Clear inputs
+    setNewTitle('');
+    setNewDue(undefined);
+    setShowDatePicker(false);
+    setSyncCalendar(false);
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create or manage tasks</Text>
-      <TaskForm
-        task={tasks.find(t => t.id === editingId) || null}
-        onSave={async (payload) => {
-          const dueDate = payload.due ? new Date(payload.due) : null;
-          if (editingId) {
-            // cancel old reminder and reschedule if needed
-            const old = tasks.find(t => t.id === editingId);
-            if (old?.reminderId) {
-              await cancelReminder(old.reminderId);
-            }
-            let newReminderId: string | null = null;
-            let newEventId: string | null = null;
-            if (dueDate) {
-              const shouldSync = await new Promise<boolean>(resolve => {
-                Alert.alert(
-                  'Sync',
-                  'Sync this updated task to calendar and schedule a reminder?',
-                  [
-                    { text: 'No', onPress: () => resolve(false) },
-                    { text: 'Yes', onPress: () => resolve(true) },
-                  ]
-                );
-              });
-              if (shouldSync) {
-                // schedule in background - best effort
-                try {
-                  newReminderId = await scheduleReminder(payload.title || 'Task', dueDate);
-                  newEventId = await createEvent(payload.title || 'Task', dueDate);
-                } catch (e) {
-                  /* ignore */
-                }
-              }
-            }
-            updateTask(editingId, { title: payload.title || 'Untitled', due: payload.due, reminderId: newReminderId, eventId: newEventId });
-          } else {
-            // create new task; optionally schedule
-            let reminderId: string | null = null;
-            let eventId: string | null = null;
-            if (dueDate) {
-              const shouldSync = await new Promise<boolean>(resolve => {
-                Alert.alert(
-                  'Sync',
-                  'Sync this task to calendar and schedule a reminder?',
-                  [
-                    { text: 'No', onPress: () => resolve(false) },
-                    { text: 'Yes', onPress: () => resolve(true) },
-                  ]
-                );
-              });
-              if (shouldSync) {
-                try {
-                  reminderId = await scheduleReminder(payload.title || 'Task', dueDate);
-                  eventId = await createEvent(payload.title || 'Task', dueDate);
-                } catch (e) {
-                  // ignore scheduling errors
-                }
-              }
-            }
-            addTask({ ...payload, reminderId, eventId });
-          }
-          setEditingId(null);
-        }}
-        onCancel={() => setEditingId(null)}
-      />
-      <FlatList
-        data={tasks.filter(t => t.status === 'pending')}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={<Text style={styles.section}>Pending</Text>}
-        renderItem={({ item }) => (
-          <TaskItem
-            task={item}
-            onEdit={() => setEditingId(item.id)}
-            onComplete={async () => {
-              // cancel reminder when completed
-              await cancelReminder(item.reminderId);
-              updateTaskStatus(item.id, 'completed');
-              updateTask(item.id, { reminderId: null, eventId: item.eventId ?? null });
-            }}
-            onDelete={async () => {
-              await cancelReminder(item.reminderId);
-              deleteTask(item.id);
-            }}
-          />
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.welcome}>👋 Welcome Emmanuel</Text>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Quick Summary</Text>
+        <Text>Pending: {pending.length}</Text>
+        <Text>Completed: {completed.length}</Text>
+        <Text>Incomplete: {incomplete.length}</Text>
+        <Text>Deleted: {deleted.length}</Text>
+      </View>
+
+      {nextDue ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Next Due</Text>
+          <Text style={styles.taskTitle}>{nextDue.title}</Text>
+          <Text>Due: {new Date(nextDue.due!).toLocaleString()}</Text>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Next Due</Text>
+          <Text style={styles.emptyText}>No upcoming tasks</Text>
+        </View>
+      )}
+
+      {/* Task Input */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Create Task</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Task title..."
+          value={newTitle}
+          onChangeText={setNewTitle}
+        />
+
+        <TouchableOpacity style={styles.dropdownHeader} onPress={() => setShowDatePicker(!showDatePicker)}>
+          <Text>Select Due Date</Text>
+          <Text>{newDue ? newDue.toLocaleString() : 'No date selected'}</Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <View style={{ marginVertical: 8 }}>
+            <DateTimePicker
+              value={newDue || new Date()}
+              mode="datetime"
+              display="default"
+              onChange={(e: Event, date?: Date) => date && setNewDue(date)}
+            />
+            <View style={styles.toggleRow}>
+              <Text>Sync to Google Calendar</Text>
+              <Switch value={syncCalendar} onValueChange={setSyncCalendar} />
+            </View>
+          </View>
         )}
-      />
-      <Button title="View Pending in Drawer" onPress={() => { /* drawer is already accessible */ }} />
-    </View>
+
+        <TouchableOpacity style={styles.createButton} onPress={handleCreateTask}>
+          <Text style={styles.createButtonText}>➕ Create Task</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 22, fontWeight: '600', marginBottom: 12 },
-  section: { fontSize: 18, marginVertical: 8 },
+  container: { padding: 16 },
+  welcome: { fontSize: 26, fontWeight: '700', marginBottom: 12 },
+  card: { backgroundColor: '#fff', padding: 14, borderRadius: 12, marginBottom: 12, elevation: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  taskTitle: { fontSize: 16, fontWeight: '700', color: '#e74c3c' },
+  emptyText: { color: '#7f8c8d' },
+  input: { borderWidth: 1, borderColor: '#ddd', padding: 10, borderRadius: 8, backgroundColor: '#fff', marginBottom: 10 },
+  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#f0f0f0', padding: 10, borderRadius: 8 },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  createButton: { backgroundColor: '#3498db', padding: 12, borderRadius: 8, marginTop: 12 },
+  createButtonText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
 });
