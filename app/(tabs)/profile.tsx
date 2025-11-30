@@ -1,55 +1,33 @@
 // app/(tabs)/profile.tsx
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Switch,
-  TextInput,
   Platform,
   ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getCurrentUser, logout, setCurrentUser, subscribeAuth } from '../../src/state/auth';
 import { useTasks } from '../../src/state/tasks';
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const { tasks, deleteTask } = useTasks();
-
-  // reactive user state via subscription
-  const [user, setUser] = useState(() => getCurrentUser());
-
-  useEffect(() => {
-    const unsubscribe = subscribeAuth((u) => setUser(u));
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  const nameFromEmail = useMemo(() => {
-    const local = user?.name ?? user?.email?.split('@')[0] ?? '';
-    return local ? local.replace(/[._\-]/g, ' ') : 'Unknown';
-  }, [user]);
-
-  const initial = useMemo(() => {
-    const n = nameFromEmail.trim();
-    return n.length ? n.charAt(0).toUpperCase() : '?';
-  }, [nameFromEmail]);
 
   const pendingCount = tasks.filter(t => t.status === 'pending').length;
   const completedCount = tasks.filter(t => t.status === 'completed').length;
 
-  const [displayName, setDisplayName] = useState(nameFromEmail);
+  const [displayName, setDisplayName] = useState('User');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [sort, setSort] = useState<'newest' | 'oldest' | 'due'>('due');
 
-  useEffect(() => {
-    setDisplayName(nameFromEmail);
-  }, [nameFromEmail]);
+  const initial = useMemo(() => {
+    const n = displayName.trim();
+    return n.length ? n.charAt(0).toUpperCase() : '?';
+  }, [displayName]);
 
   const confirmClearCompleted = () => {
     if (completedCount === 0) {
@@ -75,28 +53,6 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/');
-          },
-        },
-      ],
-    );
-  };
-
-  const saveDisplayName = () => {
-    setCurrentUser({ name: displayName });
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -107,7 +63,7 @@ export default function ProfileScreen() {
 
           <View style={styles.headerInfo}>
             <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.email}>{user?.email ?? 'No email provided'}</Text>
+            <Text style={styles.email}>Local user</Text>
           </View>
         </View>
 
@@ -178,13 +134,8 @@ export default function ProfileScreen() {
             onChangeText={setDisplayName}
             placeholder="Your name"
             style={styles.input}
-            onBlur={saveDisplayName}
             returnKeyType="done"
           />
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -238,7 +189,4 @@ const styles = StyleSheet.create({
   input: {
     marginTop: 8, borderWidth: 1, borderColor: '#e6eef2', padding: 10, borderRadius: 8, backgroundColor: '#fff',
   },
-
-  logoutButton: { marginTop: 14, backgroundColor: '#ef4444', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  logoutText: { color: '#fff', fontWeight: '700' },
 });

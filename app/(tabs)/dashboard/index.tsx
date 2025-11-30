@@ -5,7 +5,6 @@ import DateTimePicker, { Event } from '@react-native-community/datetimepicker';
 import { useTasks } from '../../../src/state/tasks';
 import { createEvent } from '../../../src/services/calendar';
 import { scheduleReminder } from '../../../src/services/notifications';
-import { getCurrentUser } from '../../../src/state/auth';
 
 export default function DashboardPage() {
   const { tasks, addTask, markOverdue } = useTasks();
@@ -13,7 +12,6 @@ export default function DashboardPage() {
   const [newDue, setNewDue] = useState<Date | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [syncCalendar, setSyncCalendar] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
 
   // Stats
   const pending = tasks.filter(t => t.status === 'pending');
@@ -30,34 +28,7 @@ export default function DashboardPage() {
   // Derive next due task
   const nextDue = pending
     .filter(t => t.due)
-    .sort((a, b) => (new Date(a.due!).getTime() - new Date(b.due!).getTime()))[0];
-
-  // Derive display name from auth state
-  useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) {
-      setUserName(null);
-      return;
-    }
-
-    // If user object has a name property, prefer it
-    // Otherwise, use the email local-part before '@' and capitalize it
-    const maybeName = (user as any).name ?? (user.email ?? '');
-    if (!maybeName) {
-      setUserName(null);
-      return;
-    }
-
-    const fromEmail = maybeName.includes('@')
-      ? maybeName.split('@')[0]
-      : maybeName;
-
-    const formatted = fromEmail.length > 0
-      ? fromEmail.charAt(0).toUpperCase() + fromEmail.slice(1)
-      : null;
-
-    setUserName(formatted);
-  }, [tasks]); // re-run when tasks change so UI updates after login/navigation
+    .sort((a, b) => new Date(a.due!).getTime() - new Date(b.due!).getTime())[0];
 
   const handleCreateTask = async () => {
     if (!newTitle.trim()) return;
@@ -87,7 +58,7 @@ export default function DashboardPage() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.welcome}>👋 Welcome {userName ?? 'there'}</Text>
+      <Text style={styles.welcome}>👋 Welcome back</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Quick Summary</Text>
@@ -97,18 +68,17 @@ export default function DashboardPage() {
         <Text>Deleted: {deleted.length}</Text>
       </View>
 
-      {nextDue ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Next Due</Text>
-          <Text style={styles.taskTitle}>{nextDue.title}</Text>
-          <Text>Due: {new Date(nextDue.due!).toLocaleString()}</Text>
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Next Due</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Next Due</Text>
+        {nextDue ? (
+          <>
+            <Text style={styles.taskTitle}>{nextDue.title}</Text>
+            <Text>Due: {new Date(nextDue.due!).toLocaleString()}</Text>
+          </>
+        ) : (
           <Text style={styles.emptyText}>No upcoming tasks</Text>
-        </View>
-      )}
+        )}
+      </View>
 
       {/* Task Input */}
       <View style={styles.card}>
